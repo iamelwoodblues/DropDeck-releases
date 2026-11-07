@@ -1,0 +1,383 @@
+diff --git a/src/api/include/projectM-4/parameters.h b/src/api/include/projectM-4/parameters.h
+index 2d9c70c..b00955e 100644
+--- a/src/api/include/projectM-4/parameters.h
++++ b/src/api/include/projectM-4/parameters.h
+@@ -263,6 +263,20 @@ PROJECTM_EXPORT bool projectm_get_preset_locked(projectm_handle instance);
+  * @param width New viewport width in pixels.
+  * @param height New viewport height in pixels.
+  */
++/**
++ * @brief Sets the animation time used for the next frame instead of the system clock.
++ * @param instance The projectM instance handle.
++ * @param seconds_since_first_frame Time in seconds. Pass a negative value to use the system clock again.
++ */
++PROJECTM_EXPORT void projectm_set_frame_time(projectm_handle instance, double seconds_since_first_frame);
++
++/**
++ * @brief Scales how far presets move per frame (zoom, rotation, warp, translation, stretch)
++ *        and how fast their trails decay, so animation speed can change without changing
++ *        the frame rate. 1.0 is normal speed.
++ */
++PROJECTM_EXPORT void projectm_set_motion_speed(projectm_handle instance, float speed);
++
+ PROJECTM_EXPORT void projectm_set_window_size(projectm_handle instance, size_t width, size_t height);
+ 
+ /**
+diff --git a/src/api/include/projectM-4/render_opengl.h b/src/api/include/projectM-4/render_opengl.h
+index 0a061f7..1d1676b 100644
+--- a/src/api/include/projectM-4/render_opengl.h
++++ b/src/api/include/projectM-4/render_opengl.h
+@@ -41,6 +41,26 @@ extern "C" {
+  */
+ PROJECTM_EXPORT void projectm_opengl_render_frame(projectm_handle instance);
+ 
++/**
++ * @brief Renders a single frame into the given framebuffer object instead of the default framebuffer.
++ * @param instance The projectM instance handle.
++ * @param framebuffer_object_id The OpenGL FBO to draw the final image into.
++ */
++PROJECTM_EXPORT void projectm_opengl_render_frame_fbo(projectm_handle instance, uint32_t framebuffer_object_id);
++
++/**
++ * @brief Seeds the active preset's feedback buffer with a GL_TEXTURE_2D image so the preset
++ *        evolves out of it (used for organic transitions). projectM takes ownership of the texture.
++ */
++PROJECTM_EXPORT void projectm_opengl_draw_initial_image(projectm_handle instance, uint32_t texture_id, int width, int height);
++
++/**
++ * @brief Returns the GL_TEXTURE_2D id of the active preset's feedback image (the picture the next
++ *        frame is warped from), or 0. Drawing into it makes the preset absorb the drawing. The
++ *        texture belongs to projectM and may change after any render, resize or preset load.
++ */
++PROJECTM_EXPORT uint32_t projectm_opengl_feedback_texture(projectm_handle instance, int* width, int* height);
++
+ #ifdef __cplusplus
+ } // extern "C"
+ #endif
+diff --git a/src/libprojectM/MilkdropPreset/MilkdropPreset.cpp b/src/libprojectM/MilkdropPreset/MilkdropPreset.cpp
+index e311cf0..e0474bf 100755
+--- a/src/libprojectM/MilkdropPreset/MilkdropPreset.cpp
++++ b/src/libprojectM/MilkdropPreset/MilkdropPreset.cpp
+@@ -175,6 +175,12 @@ auto MilkdropPreset::OutputTexture() const -> std::shared_ptr<Renderer::Texture>
+     return m_framebuffer.GetColorAttachmentTexture(m_currentFrameBuffer, 0);
+ }
+ 
++auto MilkdropPreset::FeedbackTexture() const -> std::shared_ptr<Renderer::Texture>
++{
++    // After a frame, the "previous" framebuffer holds the internal image the next frame warps.
++    return m_framebuffer.GetColorAttachmentTexture(m_previousFrameBuffer, 0);
++}
++
+ void MilkdropPreset::DrawInitialImage(const std::shared_ptr<Renderer::Texture>& image, const Renderer::RenderContext& renderContext)
+ {
+     m_framebuffer.SetSize(renderContext.viewportSizeX, renderContext.viewportSizeY);
+diff --git a/src/libprojectM/MilkdropPreset/MilkdropPreset.hpp b/src/libprojectM/MilkdropPreset/MilkdropPreset.hpp
+index cd55339..4c48c14 100644
+--- a/src/libprojectM/MilkdropPreset/MilkdropPreset.hpp
++++ b/src/libprojectM/MilkdropPreset/MilkdropPreset.hpp
+@@ -86,6 +86,8 @@ public:
+ 
+     void DrawInitialImage(const std::shared_ptr<Renderer::Texture>& image, const Renderer::RenderContext& renderContext) override;
+ 
++    auto FeedbackTexture() const -> std::shared_ptr<Renderer::Texture> override;
++
+ private:
+     void PerFrameUpdate();
+ 
+diff --git a/src/libprojectM/MilkdropPreset/PerPixelMesh.cpp b/src/libprojectM/MilkdropPreset/PerPixelMesh.cpp
+index d1f0314..f42cbaa 100644
+--- a/src/libprojectM/MilkdropPreset/PerPixelMesh.cpp
++++ b/src/libprojectM/MilkdropPreset/PerPixelMesh.cpp
+@@ -288,6 +288,32 @@ void PerPixelMesh::CalculateMesh(const PresetState& presetState, const PerFrameC
+             vertex++;
+         }
+     }
++
++    // Animation speed: scale how far the picture moves this frame. Zoom and stretch are
++    // multiplicative per frame, so they scale as powers; the rest linearly.
++    float const speed = presetState.renderContext.motionSpeed;
++    if (speed != 1.0f)
++    {
++        for (auto& v : m_vertices)
++        {
++            if (v.zoom > 0.0f)
++            {
++                v.zoom = powf(v.zoom, speed);
++            }
++            if (v.stretchX > 0.0f)
++            {
++                v.stretchX = powf(v.stretchX, speed);
++            }
++            if (v.stretchY > 0.0f)
++            {
++                v.stretchY = powf(v.stretchY, speed);
++            }
++            v.rot *= speed;
++            v.warp *= speed;
++            v.distanceX *= speed;
++            v.distanceY *= speed;
++        }
++    }
+ }
+ 
+ void PerPixelMesh::WarpedBlit(const PresetState& presetState,
+@@ -305,6 +331,11 @@ void PerPixelMesh::WarpedBlit(const PresetState& presetState,
+ 
+     // Decay
+     float decay = std::min(static_cast<float>(*perFrameContext.decay), 1.0f);
++    // Trails fade over the same real time whatever the animation speed.
++    if (presetState.renderContext.motionSpeed != 1.0f && decay > 0.0f)
++    {
++        decay = powf(decay, presetState.renderContext.motionSpeed);
++    }
+ 
+     // No blending between presets here, so we make sure blending is disabled.
+     glDisable(GL_BLEND);
+diff --git a/src/libprojectM/Preset.hpp b/src/libprojectM/Preset.hpp
+index ba06a14..dea33ce 100644
+--- a/src/libprojectM/Preset.hpp
++++ b/src/libprojectM/Preset.hpp
+@@ -47,6 +47,15 @@ public:
+     virtual void DrawInitialImage(const std::shared_ptr<Renderer::Texture>& image,
+                                   const Renderer::RenderContext& renderContext) = 0;
+ 
++    /**
++     * @brief The feedback image the next frame is drawn from (Milkdrop's internal frame), so a
++     * host can draw into it and have the preset carry the drawing on. Empty if not supported.
++     */
++    virtual auto FeedbackTexture() const -> std::shared_ptr<Renderer::Texture>
++    {
++        return {};
++    }
++
+     inline void SetFilename(const std::string& filename)
+     {
+         m_filename = filename;
+diff --git a/src/libprojectM/ProjectM.cpp b/src/libprojectM/ProjectM.cpp
+index 88fa014..034ed77 100644
+--- a/src/libprojectM/ProjectM.cpp
++++ b/src/libprojectM/ProjectM.cpp
+@@ -90,7 +90,52 @@ void ProjectM::ResetTextures()
+     m_textureManager = std::make_unique<Renderer::TextureManager>(m_textureSearchPaths);
+ }
+ 
+-void ProjectM::RenderFrame()
++void ProjectM::SetFrameTime(double secondsSinceFirstFrame)
++{
++    if (m_timeKeeper)
++    {
++        m_timeKeeper->SetFrameTime(secondsSinceFirstFrame);
++    }
++}
++
++void ProjectM::SetMotionSpeed(float speed)
++{
++    m_motionSpeed = std::max(0.0f, std::min(speed, 8.0f));
++}
++
++void ProjectM::DrawInitialImage(uint32_t textureId, int width, int height)
++{
++    if (!m_activePreset || textureId == 0 || width <= 0 || height <= 0)
++    {
++        return;
++    }
++    auto image = std::make_shared<Renderer::Texture>("seed", textureId, GL_TEXTURE_2D, width, height, false);
++    m_activePreset->DrawInitialImage(image, GetRenderContext());
++}
++
++auto ProjectM::FeedbackTexture(int* width, int* height) const -> uint32_t
++{
++    if (!m_activePreset)
++    {
++        return 0;
++    }
++    auto texture = m_activePreset->FeedbackTexture();
++    if (!texture || texture->Empty())
++    {
++        return 0;
++    }
++    if (width)
++    {
++        *width = texture->Width();
++    }
++    if (height)
++    {
++        *height = texture->Height();
++    }
++    return texture->TextureID();
++}
++
++void ProjectM::RenderFrame(uint32_t targetFramebufferObject)
+ {
+     // Don't render if window area is zero.
+     if (m_windowWidth == 0 || m_windowHeight == 0)
+@@ -166,8 +211,7 @@ void ProjectM::RenderFrame()
+     // ToDo: Call the to-be-implemented render method in Renderer
+     m_activePreset->RenderFrame(audioData, renderContext);
+ 
+-    // ToDo: Allow external apps to provide a custom target framebuffer.
+-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
++    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, targetFramebufferObject);
+     glViewport(0, 0, renderContext.viewportSizeX, renderContext.viewportSizeY);
+ 
+ #ifdef USE_GLES
+@@ -449,6 +493,7 @@ auto ProjectM::GetRenderContext() -> Renderer::RenderContext
+     ctx.aspectY = (m_windowWidth > m_windowHeight) ? static_cast<float>(m_windowHeight) / static_cast<float>(m_windowWidth) : 1.0f;
+     ctx.invAspectX = 1.0f / ctx.aspectX;
+     ctx.invAspectY = 1.0f / ctx.aspectY;
++    ctx.motionSpeed = m_motionSpeed;
+     ctx.perPixelMeshX = static_cast<int>(m_meshX);
+     ctx.perPixelMeshY = static_cast<int>(m_meshY);
+     ctx.textureManager = m_textureManager.get();
+diff --git a/src/libprojectM/ProjectM.hpp b/src/libprojectM/ProjectM.hpp
+index b84e293..23c98dd 100644
+--- a/src/libprojectM/ProjectM.hpp
++++ b/src/libprojectM/ProjectM.hpp
+@@ -101,7 +101,29 @@ public:
+ 
+     void ResetTextures();
+ 
+-    void RenderFrame();
++    void RenderFrame(uint32_t targetFramebufferObject = 0);
++
++    /**
++     * @brief Overrides the wall clock with an externally supplied animation time.
++     * @param secondsSinceFirstFrame Time in seconds. Negative values restore the system clock.
++     */
++    void SetFrameTime(double secondsSinceFirstFrame);
++
++    /**
++     * @brief Scales per-frame motion and trail decay (1.0 = normal speed).
++     */
++    void SetMotionSpeed(float speed);
++
++    /**
++     * @brief Seeds the active preset's feedback buffer with an image (e.g. the previous preset's
++     *        last frame), so it evolves out of that picture. Takes ownership of the texture.
++     */
++    void DrawInitialImage(uint32_t textureId, int width, int height);
++
++    /**
++     * @brief GL_TEXTURE_2D id of the active preset's feedback image (0 if there is none).
++     */
++    auto FeedbackTexture(int* width, int* height) const -> uint32_t;
+ 
+     void SetBeatSensitivity(float sensitivity);
+ 
+@@ -187,6 +209,7 @@ private:
+     uint32_t m_meshX{32};              //!< Per-point mesh horizontal resolution.
+     uint32_t m_meshY{24};              //!< Per-point mesh vertical resolution.
+     uint32_t m_targetFps{35};          //!< Target frames per second.
++    float m_motionSpeed{1.0f};         //!< Per-frame motion scale.
+     uint32_t m_windowWidth{0};            //!< EvaluateFrameData window width. If 0, nothing is rendered.
+     uint32_t m_windowHeight{0};           //!< EvaluateFrameData window height. If 0, nothing is rendered.
+     double m_presetDuration{30.0};   //!< Preset duration in seconds.
+diff --git a/src/libprojectM/ProjectMCWrapper.cpp b/src/libprojectM/ProjectMCWrapper.cpp
+index d58f123..422833a 100644
+--- a/src/libprojectM/ProjectMCWrapper.cpp
++++ b/src/libprojectM/ProjectMCWrapper.cpp
+@@ -171,6 +171,36 @@ void projectm_opengl_render_frame(projectm_handle instance)
+     projectMInstance->RenderFrame();
+ }
+ 
++void projectm_opengl_render_frame_fbo(projectm_handle instance, uint32_t framebuffer_object_id)
++{
++    auto projectMInstance = handle_to_instance(instance);
++    projectMInstance->RenderFrame(framebuffer_object_id);
++}
++
++void projectm_opengl_draw_initial_image(projectm_handle instance, uint32_t texture_id, int width, int height)
++{
++    auto projectMInstance = handle_to_instance(instance);
++    projectMInstance->DrawInitialImage(texture_id, width, height);
++}
++
++uint32_t projectm_opengl_feedback_texture(projectm_handle instance, int* width, int* height)
++{
++    auto projectMInstance = handle_to_instance(instance);
++    return projectMInstance->FeedbackTexture(width, height);
++}
++
++void projectm_set_motion_speed(projectm_handle instance, float speed)
++{
++    auto projectMInstance = handle_to_instance(instance);
++    projectMInstance->SetMotionSpeed(speed);
++}
++
++void projectm_set_frame_time(projectm_handle instance, double seconds_since_first_frame)
++{
++    auto projectMInstance = handle_to_instance(instance);
++    projectMInstance->SetFrameTime(seconds_since_first_frame);
++}
++
+ void projectm_set_beat_sensitivity(projectm_handle instance, float sensitivity)
+ {
+     auto projectMInstance = handle_to_instance(instance);
+diff --git a/src/libprojectM/Renderer/RenderContext.hpp b/src/libprojectM/Renderer/RenderContext.hpp
+index a5a1f9c..47b52f4 100644
+--- a/src/libprojectM/Renderer/RenderContext.hpp
++++ b/src/libprojectM/Renderer/RenderContext.hpp
+@@ -26,6 +26,8 @@ public:
+     float invAspectX{1.0}; //!< Inverse X aspect ratio.
+     float invAspectY{1.0}; //!< Inverse Y aspect ratio.
+ 
++    float motionSpeed{1.0f}; //!< Scales per-frame motion and decay (1 = normal).
++
+     int perPixelMeshX{64}; //!< Per-pixel/per-vertex mesh X resolution.
+     int perPixelMeshY{48}; //!< Per-pixel/per-vertex mesh Y resolution.
+ 
+diff --git a/src/libprojectM/TimeKeeper.cpp b/src/libprojectM/TimeKeeper.cpp
+index 612b0ab..14c0562 100644
+--- a/src/libprojectM/TimeKeeper.cpp
++++ b/src/libprojectM/TimeKeeper.cpp
+@@ -18,7 +18,9 @@ void TimeKeeper::UpdateTimers()
+ {
+     auto currentTime = std::chrono::high_resolution_clock::now();
+ 
+-    double currentFrameTime = std::chrono::duration<double>(currentTime - m_startTime).count();
++    double currentFrameTime = m_userSpecifiedTime >= 0.0
++                                  ? m_userSpecifiedTime
++                                  : std::chrono::duration<double>(currentTime - m_startTime).count();
+     m_secondsSinceLastFrame = currentFrameTime - m_currentTime;
+     m_currentTime = currentFrameTime;
+     m_presetFrameA++;
+diff --git a/src/libprojectM/TimeKeeper.hpp b/src/libprojectM/TimeKeeper.hpp
+index 23d17df..4dc93a5 100644
+--- a/src/libprojectM/TimeKeeper.hpp
++++ b/src/libprojectM/TimeKeeper.hpp
+@@ -81,6 +81,11 @@ public:
+         m_easterEgg = value;
+     }
+ 
++    inline void SetFrameTime(double secondsSinceFirstFrame)
++    {
++        m_userSpecifiedTime = secondsSinceFirstFrame;
++    }
++
+     inline auto SecondsSinceLastFrame() const -> double
+     {
+         return m_secondsSinceLastFrame;
+@@ -95,6 +100,8 @@ private:
+ 
+     double m_secondsSinceLastFrame{};
+ 
++    double m_userSpecifiedTime{-1.0}; //!< Externally supplied frame time, or negative to use the system clock.
++
+     double m_easterEgg{};
+ 
+     double m_presetDuration{};
+diff --git a/vendor/projectm-eval/projectm-eval/TreeFunctions.c b/vendor/projectm-eval/projectm-eval/TreeFunctions.c
+index ddd1d82..a5d595b 100644
+--- a/vendor/projectm-eval/projectm-eval/TreeFunctions.c
++++ b/vendor/projectm-eval/projectm-eval/TreeFunctions.c
+@@ -159,8 +159,8 @@ static uint32_t prjm_eval_genrand_int32(void)
+     static uint32_t mag01[2] = { 0x0UL, MATRIX_A };
+     /* mag01[x] = x * MATRIX_A  for x=0,1 */
+ 
+-    static uint32_t mt[N]; /* the array for the state vector  */
+-    static int32_t mti; /* mti==N+1 means mt[N] is not initialized */
++    static _Thread_local uint32_t mt[N]; /* the array for the state vector (per thread for concurrent instances) */
++    static _Thread_local int32_t mti; /* mti==N+1 means mt[N] is not initialized */
+ 
+ 
+     if (!mti)
