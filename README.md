@@ -7,7 +7,6 @@ or a TV over HDMI, while you control everything from your MacBook. Line up the n
 **Preview**, then **Take** it to the audience on the beat. Or switch on **Auto** and let it
 follow the music.
 
-This repository holds DropDeck's downloads. Its source code isn't public.
 
 ## What you need
 
