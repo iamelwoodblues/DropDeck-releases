@@ -1,12 +1,15 @@
-# DropDeck
+<p align="center"><img src="images/icon.png" width="128" alt="DropDeck icon"></p>
 
-**Live MilkDrop visuals for your Mac, run like a VJ desk.**
+<h1 align="center">DropDeck</h1>
+
+<p align="center"><strong>Live MilkDrop visuals for your Mac, run like a VJ desk.</strong></p>
 
 DropDeck plays MilkDrop / projectM presets fullscreen on a second screen, such as a projector
 or a TV over HDMI, while you control everything from your MacBook. Line up the next visual in
 **Preview**, then **Take** it to the audience on the beat. Or switch on **Auto** and let it
 follow the music.
 
+![DropDeck with presets playing in Preview and PROGRAM, and the preset browser below](images/preview.png)
 
 ## What you need
 
