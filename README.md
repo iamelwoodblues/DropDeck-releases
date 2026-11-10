@@ -136,7 +136,7 @@ Press **?** in the app to see every shortcut.
 - **Phone remote**: run the show from your phone's browser on the same Wi-Fi: take, cut, hold,
   blackout and master, FX (and their set-up), pads, the preset browser (tap three times to
   take a preset), tap tempo and the Mac's audio gain (tap the BPM), and the Mac's stats. Turn it
-  on and scan the QR code in **Output › Phone remote**.
+  on and scan the QR code in **Control › Phone remote**.
 
 **Built for live use**
 - The visuals run in a separate process. If a preset crashes, the controls keep working and the
@@ -149,8 +149,8 @@ Press **?** in the app to see every shortcut.
 The Air has no fan, so it slows down when it gets hot.
 
 - Watch the **HEAT** dot in the status bar. If it turns amber or red, lower the resolution
-  (1080p or 720p) or set the **FPS cap** to 30 in the Output tab.
-- Leave **Efficient preview**, **Adaptive resolution** and **Avoid heavy presets** on.
+  (1080p or 720p) or set the **FPS cap** to 30 in the Setup tab.
+- Leave **Half-rate Preview**, **Adaptive resolution** and **Avoid heavy presets** on.
 - Before a gig, stop the output and let DropDeck check the whole library. Then set the filter
   to **Smooth only** for a set that never struggles.
 
@@ -162,7 +162,7 @@ The Air has no fan, so it slows down when it gets hot.
 | Favourites, tags, play counts and speed results | `~/Library/Application Support/DropDeck/library.sqlite` |
 | Imported presets and their textures | `~/Library/Application Support/DropDeck/Presets/` and `Textures/`, a folder per pack (right-click a pack › **Reveal in Finder**) |
 | Thumbnails | `~/Library/Caches/DropDeck/thumbs/` |
-| Logs | `~/Library/Logs/DropDeck/` (the Stats tab has an **Open log folder** button) |
+| Logs | `~/Library/Logs/DropDeck/` (the Performance panel, opened from the status bar, has an **Open log folder** button) |
 
 ## Licences
 
@@ -175,6 +175,8 @@ The Air has no fan, so it slows down when it gets hot.
   [`LICENSES/projectM-LGPL-2.1.txt`](LICENSES/projectM-LGPL-2.1.txt).
 - **Audiowide font** (the DROPDECK name) by Astigmatic, under the SIL Open Font License 1.1:
   [`LICENSES/Audiowide-OFL.txt`](LICENSES/Audiowide-OFL.txt), also inside the app.
+- **Phosphor Icons** (the icons) under the MIT licence:
+  [`LICENSES/Phosphor-Icons-MIT.txt`](LICENSES/Phosphor-Icons-MIT.txt), also inside the app.
 - **Textures and presets:** the texture pack inside the app, and the Cream of the Crop presets the
   welcome screen points to, come from the projectM project. Per projectM, MilkDrop presets were
   released freely by their authors and are treated as public domain.
