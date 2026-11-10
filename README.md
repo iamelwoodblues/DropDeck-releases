@@ -78,12 +78,14 @@ find is left out: import it when it's back and its details return with it.
 
 ### 4. Play
 
-- Plug in the second display. The visuals go fullscreen there.
+- Plug in the second display. The visuals go full screen there. With one display they play in a
+  window behind the controls; tick **Keep output on top** in the **Setup** tab to put it in front.
 - Click a preset to cue it in **Preview**. Only you can see Preview.
 - Press **Space** (or **TAKE**) to blend it onto **PROGRAM**, the output, on the beat.
 - Or click **AUTO**, and DropDeck changes presets by itself on the bar or phrase.
 
-Press **?** in the app to see every shortcut.
+Press **?** in the app to see every shortcut. **Full screen** (the arrows at the bottom right, or ⌃⌘F) fills the screen
+with the controls, and **Quit** (top right) closes DropDeck.
 
 ## What it can do
 
