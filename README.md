@@ -91,14 +91,16 @@ with the controls, and **Quit** (top right) closes DropDeck.
 
 **Playing visuals**
 - Beat-synced transitions, including **Morph**, where the new preset grows out of the old picture
-- A T-bar for fading by hand, a master fader and fade to black
+- A T-bar that follows **TAKE** (down on one, back up on the next) and fades by hand, a master fader and fade to black. Moving the master overrides a fade, bringing the output straight back
+- Under each monitor, the preset's name and a row of icons (colours, movement, beat, warnings, a star for favourites): rest the mouse on it for everything
+- Numbers, words and icons roll into place when they change, a digit at a time, like a departures board
 - A speed control that really slows presets down or speeds them up
 - Adaptive resolution, so heavy presets stay smooth
 
 **Auto**
 - Changes presets every so many beats, bars or phrases, right on the beat
 - Plays from whatever the browser shows: a folder, a search, your favourites or a filtered look
-- **Hold**: keep what's live for as long as you hold **H**
+- **Hold**: a switch (**H** or the HOLD button) that keeps what's live until you switch it off
 - Can leave out heavy presets, flashing presets, presets with missing textures, and presets that black out
 - **Match the music**: calmer presets in breakdowns, punchier ones around drops
 
