@@ -11,7 +11,7 @@ follow the music.
 
 ![DropDeck with presets playing in Preview and PROGRAM, and the preset browser below](images/preview.png)
 
-The [wiki](WIKI.md) explains every feature and control, top to bottom.
+The [wiki](https://github.com/iamelwoodblues/DropDeck-releases/wiki) explains every feature and control, top to bottom.
 
 ## What you need
 
