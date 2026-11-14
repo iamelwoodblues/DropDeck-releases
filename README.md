@@ -11,6 +11,8 @@ follow the music.
 
 ![DropDeck with presets playing in Preview and PROGRAM, and the preset browser below](images/preview.png)
 
+The [wiki](WIKI.md) explains every feature and control, top to bottom.
+
 ## What you need
 
 - A Mac with Apple Silicon (M1 or later) and macOS 13 or later
